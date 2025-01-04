@@ -29,24 +29,42 @@ public class SingleReactorServer {
             while (iterator.hasNext()) {
                 SelectionKey key = iterator.next();
                 iterator.remove();
-                if (key.isAcceptable()) {
+                if (key.isValid() && key.isAcceptable()) {
                     ServerSocketChannel acceptServerSocketChannel = (ServerSocketChannel) key.channel();
                     SocketChannel socketChannel = acceptServerSocketChannel.accept();
                     socketChannel.configureBlocking(false);
-                    System.out.println("accept from " + socketChannel.socket().getInetAddress().toString());
+                    System.out.println("accept from： " + socketChannel.socket().getInetAddress().toString() + ":"
+                            + socketChannel.socket().getPort());
                     // 将新连接的socketChannel注册到selector上，并关注read事件
                     socketChannel.register(selector, SelectionKey.OP_READ);
                 } else if (key.isReadable() && key.isValid()) {
                     SocketChannel socketChannel = (SocketChannel) key.channel();
                     ByteBuffer buffer = ByteBuffer.allocate(1024);
-                    int count = socketChannel.read(buffer);
-                    if (count <= 0) {
-                        socketChannel.close();
+                    try {
+                        int count = socketChannel.read(buffer);
+                        if (count <= 0) {
+                            socketChannel.close();
+                            key.cancel();
+                            System.out.println("Received invalid data, close the connection");
+                            continue;
+                        }
+                        String receivedMessage = new String(buffer.array());
+                        System.out.println("Received message: " + receivedMessage);
+                        System.out.println("current thread：" + Thread.currentThread());
+
+                        // 将响应数据写回客户端
+                        String responseMessage = "echo: " + receivedMessage;
+                        ByteBuffer responseBuffer = ByteBuffer.wrap(responseMessage.getBytes());
+                        socketChannel.write(responseBuffer);
+                        // 处理完成后，关闭连接，不过在实际应用中，通常不会主动关闭。因为一般会有keep-alive
+//                    socketChannel.close();
+//                    key.cancel();
+                    } catch (IOException e) {
                         key.cancel();
-                        System.out.println("Received invalide data, close the connection");
-                        continue;
+                        socketChannel.close();
+//                        e.printStackTrace();
+                        System.out.println("Received invalid data, close the connection");
                     }
-                    System.out.println("Received message" + new String(buffer.array()));
                 }
                 // 将已经处理完成的key删除
                 keys.remove(key);
