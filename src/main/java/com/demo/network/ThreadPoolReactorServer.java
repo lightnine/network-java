@@ -21,7 +21,8 @@ public class ThreadPoolReactorServer {
     private static final ExecutorService pool = Executors.newFixedThreadPool(100);
 
     public static void main(String[] args) throws IOException {
-        // 1. 主线程中处理网络新建和可读事件
+        // 1. 主线程中处理网络新建和可读事件，注：java中的selector只有水平触发，不支持边缘触发
+        // 边缘触发是数据从无到有时才触发事件，水平触发是只要有数据就触发事件，所以在下面的处理中会设置attachment来避免重复处理同一个事件。
         Selector selector = Selector.open();
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.configureBlocking(false);
